@@ -51,12 +51,39 @@
                         class="w-full px-3 py-2.5 border border-slate-300 rounded-xl text-center text-lg tracking-widest font-bold focus:ring-2 focus:ring-amber-500 focus:outline-none">
                     <p class="text-[11px] text-slate-400 mt-1.5 text-center">PIN inicial por defecto: <code class="bg-slate-100 px-1.5 py-0.5 rounded text-slate-700 font-bold">1234</code></p>
                 </div>
+                <div class="text-center">
+                    <button type="button" onclick="toggleAdminRecoveryView(true)" class="text-xs text-blue-600 hover:underline font-medium">
+                        ¿Olvidaste tu PIN? Recuperar acceso
+                    </button>
+                </div>
                 <div class="flex justify-end gap-2 pt-2">
                     <button type="button" onclick="closeAdminModal()" class="px-4 py-2 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl">
                         Cancelar
                     </button>
                     <button type="button" onclick="verifyAdminPin()" class="px-4 py-2 text-xs font-semibold text-slate-900 bg-amber-400 hover:bg-amber-500 rounded-xl transition flex items-center gap-1.5">
                         <i class="fa-solid fa-unlock"></i> Desbloquear
+                    </button>
+                </div>
+            </div>
+            <!-- Vista de Recuperación de PIN con Clave Maestra -->
+            <div id="admin-recovery-view" class="hidden p-6 space-y-4">
+                <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-900">
+                    <i class="fa-solid fa-key text-amber-600 mr-1"></i>
+                    Ingresa tu <strong>Clave Maestra de Recuperación</strong> para restablecer el PIN a <code>1234</code> en todos los dispositivos.
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Clave Maestra (PUK)</label>
+                    <input type="password" id="admin-recovery-input" placeholder="Ingresa tu clave maestra..."
+                        onkeydown="if(event.key==='Enter') recoverAdminPin()"
+                        class="w-full px-3 py-2.5 border border-slate-300 rounded-xl text-center text-sm font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    <p class="text-[11px] text-slate-400 mt-1.5 text-center">Clave maestra inicial: <code class="bg-slate-100 px-1.5 py-0.5 rounded text-slate-700 font-bold">RECUPERAR2026</code></p>
+                </div>
+                <div class="flex justify-between items-center pt-2">
+                    <button type="button" onclick="toggleAdminRecoveryView(false)" class="text-xs text-slate-500 hover:underline font-medium">
+                        ← Volver al PIN
+                    </button>
+                    <button type="button" onclick="recoverAdminPin()" class="px-4 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-rotate-left"></i> Restablecer a 1234
                     </button>
                 </div>
             </div>
@@ -72,6 +99,16 @@
                             class="flex-1 px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none">
                         <button type="button" onclick="changeAdminPin()" class="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl">
                             Guardar PIN
+                        </button>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Personalizar Clave Maestra de Recuperación</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="new-recovery-key" maxlength="25" placeholder="Nueva palabra clave de respaldo"
+                            class="flex-1 px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                        <button type="button" onclick="changeRecoveryKey()" class="px-3 py-2 bg-slate-700 hover:bg-slate-800 text-white text-xs font-semibold rounded-xl">
+                            Guardar Clave
                         </button>
                     </div>
                 </div>
@@ -519,6 +556,7 @@
     <script>
         let CLOUD_API_URL = /*EMBEDDED_CLOUD_URL_START*/""/*EMBEDDED_CLOUD_URL_END*/;
         let ADMIN_PIN = /*EMBEDDED_ADMIN_PIN_START*/"1234"/*EMBEDDED_ADMIN_PIN_END*/;
+        let RECOVERY_KEY = /*EMBEDDED_RECOVERY_KEY_START*/"RECUPERAR2026"/*EMBEDDED_RECOVERY_KEY_END*/;
         let isAdminMode = false;
 
         const DEFAULT_INVENTORY = /*EMBEDDED_DATA_START*/[
@@ -629,6 +667,8 @@
             try {
                 const savedPin = localStorage.getItem('inventario_admin_pin_v1');
                 if (savedPin) ADMIN_PIN = savedPin;
+                const savedRec = localStorage.getItem('inventario_recovery_key_v1');
+                if (savedRec) RECOVERY_KEY = savedRec;
             } catch (e) {}
 
             applyRolePermissions();
@@ -670,9 +710,11 @@
         function openAdminModal() {
             const modal = document.getElementById('admin-modal');
             const loginView = document.getElementById('admin-login-view');
+            const recoveryView = document.getElementById('admin-recovery-view');
             const manageView = document.getElementById('admin-manage-view');
             const title = document.getElementById('admin-modal-title');
 
+            recoveryView.classList.add('hidden');
             if (isAdminMode) {
                 title.textContent = 'Panel de Administrador';
                 loginView.classList.add('hidden');
@@ -687,6 +729,62 @@
 
             modal.classList.remove('hidden');
             modal.classList.add('flex');
+        }
+
+        function toggleAdminRecoveryView(showRecovery) {
+            const loginView = document.getElementById('admin-login-view');
+            const recoveryView = document.getElementById('admin-recovery-view');
+            const title = document.getElementById('admin-modal-title');
+            if (showRecovery) {
+                title.textContent = 'Recuperar PIN de Administrador';
+                loginView.classList.add('hidden');
+                recoveryView.classList.remove('hidden');
+                document.getElementById('admin-recovery-input').value = '';
+                setTimeout(() => document.getElementById('admin-recovery-input').focus(), 100);
+            } else {
+                title.textContent = 'Acceso Administrador';
+                recoveryView.classList.add('hidden');
+                loginView.classList.remove('hidden');
+                setTimeout(() => document.getElementById('admin-pin-input').focus(), 100);
+            }
+        }
+
+        function recoverAdminPin() {
+            const enteredKey = document.getElementById('admin-recovery-input').value.trim();
+            if (enteredKey.toUpperCase() === String(RECOVERY_KEY).toUpperCase()) {
+                ADMIN_PIN = '1234';
+                try {
+                    localStorage.setItem('inventario_admin_pin_v1', '1234');
+                } catch (e) {}
+                isAdminMode = true;
+                applyRolePermissions();
+                renderTable();
+                closeAdminModal();
+                logAudit('SEGURIDAD', 'Recuperación de PIN', 'El PIN fue restablecido a 1234 mediante Clave Maestra.');
+                saveToStorage();
+                showToast('PIN restablecido a 1234 y sesión de Administrador desbloqueada.', 'success');
+            } else {
+                showToast('Clave Maestra incorrecta.', 'error');
+                document.getElementById('admin-recovery-input').value = '';
+                document.getElementById('admin-recovery-input').focus();
+            }
+        }
+
+        function changeRecoveryKey() {
+            if (!requireAdmin()) return;
+            const newKey = document.getElementById('new-recovery-key').value.trim();
+            if (newKey.length < 5) {
+                showToast('La Clave Maestra debe tener al menos 5 caracteres.', 'error');
+                return;
+            }
+            RECOVERY_KEY = newKey;
+            try {
+                localStorage.setItem('inventario_recovery_key_v1', newKey);
+            } catch (e) {}
+            document.getElementById('new-recovery-key').value = '';
+            logAudit('SEGURIDAD', 'Cambio Clave Maestra', 'Se actualizó la clave de recuperación en la nube.');
+            saveToStorage();
+            showToast('Clave Maestra actualizada correctamente.', 'success');
         }
 
         function closeAdminModal() {
@@ -813,6 +911,7 @@
                     body: JSON.stringify({
                         items: inventoryData,
                         adminPin: ADMIN_PIN,
+                        recoveryKey: RECOVERY_KEY,
                         updatedAt: new Date().toISOString()
                     })
                 });
@@ -850,6 +949,13 @@
                     ADMIN_PIN = String(data.adminPin).trim();
                     try {
                         localStorage.setItem('inventario_admin_pin_v1', ADMIN_PIN);
+                    } catch (e) {}
+                }
+
+                if (data && data.recoveryKey && String(data.recoveryKey).trim().length >= 5) {
+                    RECOVERY_KEY = String(data.recoveryKey).trim();
+                    try {
+                        localStorage.setItem('inventario_recovery_key_v1', RECOVERY_KEY);
                     } catch (e) {}
                 }
 
@@ -1702,6 +1808,7 @@
                 const serializedData = JSON.stringify(inventoryData, null, 4);
                 const serializedUrl = JSON.stringify(CLOUD_API_URL || "");
                 const serializedPin = JSON.stringify(ADMIN_PIN || "1234");
+                const serializedRec = JSON.stringify(RECOVERY_KEY || "RECUPERAR2026");
 
                 fullHtml = fullHtml.replace(
                     /\/\*EMBEDDED_DATA_START\*\/[\s\S]*?\/\*EMBEDDED_DATA_END\*\//,
@@ -1714,6 +1821,10 @@
                 fullHtml = fullHtml.replace(
                     /\/\*EMBEDDED_ADMIN_PIN_START\*\/[\s\S]*?\/\*EMBEDDED_ADMIN_PIN_END\*\//,
                     `/*EMBEDDED_ADMIN_PIN_START*/${serializedPin}/*EMBEDDED_ADMIN_PIN_END*/`
+                );
+                fullHtml = fullHtml.replace(
+                    /\/\*EMBEDDED_RECOVERY_KEY_START\*\/[\s\S]*?\/\*EMBEDDED_RECOVERY_KEY_END\*\//,
+                    `/*EMBEDDED_RECOVERY_KEY_START*/${serializedRec}/*EMBEDDED_RECOVERY_KEY_END*/`
                 );
 
                 const blob = new Blob([fullHtml], { type: "text/html;charset=utf-8" });
