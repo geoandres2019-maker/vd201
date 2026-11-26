@@ -711,6 +711,7 @@
         }
 
         function changeAdminPin() {
+            if (!requireAdmin()) return;
             const newPin = document.getElementById('new-admin-pin').value.trim();
             if (newPin.length < 4) {
                 showToast('El nuevo PIN debe tener al menos 4 caracteres.', 'error');
@@ -721,7 +722,9 @@
                 localStorage.setItem('inventario_admin_pin_v1', newPin);
             } catch (e) {}
             document.getElementById('new-admin-pin').value = '';
-            showToast('PIN de Administrador actualizado correctamente.', 'success');
+            logAudit('SEGURIDAD', 'Cambio de PIN Global', 'Se actualizó la contraseña de Administrador en la nube para todos los dispositivos.');
+            saveToStorage();
+            showToast('PIN actualizado globalmente para todos los dispositivos.', 'success');
         }
 
         function logoutAdmin() {
@@ -809,6 +812,7 @@
                     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                     body: JSON.stringify({
                         items: inventoryData,
+                        adminPin: ADMIN_PIN,
                         updatedAt: new Date().toISOString()
                     })
                 });
@@ -840,6 +844,13 @@
                     data = JSON.parse(text);
                 } catch (parseErr) {
                     throw new Error('Google devolvió HTML en lugar de JSON. Revisa que el acceso sea "Cualquier persona".');
+                }
+
+                if (data && data.adminPin && String(data.adminPin).trim().length >= 4) {
+                    ADMIN_PIN = String(data.adminPin).trim();
+                    try {
+                        localStorage.setItem('inventario_admin_pin_v1', ADMIN_PIN);
+                    } catch (e) {}
                 }
 
                 if (data && Array.isArray(data.items) && data.items.length > 0) {
